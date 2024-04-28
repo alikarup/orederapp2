@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tablet Order App</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+        .container { display: flex; flex-direction: column; height: 100vh; }
+        header { background: #f97171; color: white; text-align: left; padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .content { flex: 1; overflow: hidden; display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 10px; padding: 10px; }
+        .sidebar, .main-content, .right-sidebar { padding: 10px; }
+        .sidebar, .right-sidebar { background: white; overflow-y: auto; }
+        .main-content { overflow-y: auto; background: white; }
+        .button, .category, .item, .delivery-option, .pickup-option {
+            padding: 15px; margin: 10px; font-size: 18px; border-radius: 8px; text-align: center; cursor: pointer;
+        }
+        .category { background-color: #4CAF50; color: white; }
+        .delivery-option, .pickup-option { background-color: #0091EA; color: white; }
+        .mega-button, .familie-button { color: white; border-radius: 5px; padding: 10px 15px; cursor: pointer; }
+        .mega-button { background-color: #ff4c4c; }
+        .familie-button { background-color: #4c6eff; }
+        .item { background-color: #f0f0f0; border: 1px solid #ccc; display: flex; justify-content: space-between; align-items: center; }
+        .item:hover { background-color: #e0e0e0; }
+        .search-box { display: flex; align-items: center; }
+        input[type="number"], button { padding: 12px; margin: 0 5px; font-size: 16px; border-radius: 5px; border: 1px solid #ccc; }
+        button:hover { background-color: #45a049; color: white; }
+        .cart-item { display: flex; justify-content: space-between; align-items: center; margin: 5px; padding: 10px; background-color: #fff; border-radius: 5px; border: 1px solid #ccc; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); padding: 20px; box-sizing: border-box; }
+        .modal-content { background-color: #fff; margin: 10% auto; padding: 20px; width: 80%; max-width: 600px; border-radius: 10px; }
+        .close { float: right; cursor: pointer; font-size: 28px; }
+        input[type="text"], input[type="number"] { width: 100%; padding: 15px; margin: 10px 0; font-size: 18px; border-radius: 5px; }
+
+        @media print {
+            body { width: 80mm; background: none; }
+            .modal-content, .container, header, .content, .sidebar, .main-content, .right-sidebar, .cart-item, .delivery-option, .pickup-option, .mega-button, .familie-button {
+                display: none;
+            }
+            .print-container {
+                width: 80mm;
+                font-size: 14px; /* Updated font size */
+                line-height: 1.5;
+                font-family: 'Courier New', Courier, monospace;
+                margin-bottom: 30mm; /* Added bottom margin for feeding before cutting */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Order Menu</h1>
+            <div class="search-box">
+                <input type="number" id="search-input" placeholder="Search by item number..." min="1">
+                <button onclick="searchItem()">Search</button>
+            </div>
+        </header>
+        <div class="content">
+            <div class="sidebar" id="left-sidebar">
+                <!-- Categories will be dynamically loaded here -->
+            </div>
+            <div class="main-content" id="main-content">
+                <!-- Items will be dynamically loaded here -->
+            </div>
+            <div class="right-sidebar">
+                <div class="cart">
+                    <h2>Shopping Cart</h2>
+                    <div id="cart-items"><!-- Cart items will appear here --></div>
+                    <div class="total-price">Total: <span id="total">0</span> DKK</div>
+                    <div class="checkout-buttons">
+                        <div class="delivery-option" onclick="openModal('delivery')">Delivery</div>
+                        <div class="pickup-option" onclick="openModal('pickup')">Pick-up</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals for delivery and pickup details -->
+    <div id="deliveryModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('delivery')">&times;</span>
+            <h2>Delivery Details</h2>
+            <input type="text" id="name" placeholder="Full Name">
+            <input type="text" id="address" placeholder="Delivery Address">
+            <input type="text" id="phone" placeholder="Phone Number">
+            <div>
+                <p>Select Delivery Cost:</p>
+                <button onclick="addDeliveryCost(20)">20 DKK</button>
+                <button onclick="addDeliveryCost(30)">30 DKK</button>
+                <button onclick="addDeliveryCost(40)">40 DKK</button>
+                <button onclick="addDeliveryCost(50)">50 DKK</button>
+            </div>
+            <button onclick="submitOrder('delivery')">Confirm</button>
+        </div>
+    </div>
+    <div id="pickupModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('pickup')">&times;</span>
+            <h2>Pick-up Details</h2>
+            <input type="text" id="name-pickup" placeholder="Full Name">
+            <button onclick="submitOrder('pickup')">Confirm</button>
+        </div>
+    </div>
+
+   <script>
+        let categories = [
+             { name: "Pizza 1-34", range: [1, 35] },
+            { name: "pizza 35-57", range: [35, 58] }, 
+            { name: "Indbagt 58-85", range: [58, 85] },
+            { name: "Pita/Børn 86-111", range: [86, 111] },
+            { name: "Burger/Grill 112-144", range: [112, 144] },
+            { name: "Salat/Pasta 145-161", range: [145, 161] },
+            { name: "Drinks/Ice Cream 163-184", range: [172, 184] },
+        ];
+
+        let items = [
+            { id: 1, name: "Margherita", description: "Tomatsauce og ost", price: 65 },
+        { id: 2, name: "Kobani", description: "Skinke", price: 70 },
+        { id: 3, name: "Vesuvio", description: "Pepperoni", price: 70 },
+        { id: 4, name: "Nicky", description: "Kebab, løg, Dressing, Chili", price: 75 },
+        { id: 5, name: "Miki", description: "Kebab, Spaghetti, Dressing", price: 70 },
+        { id: 6, name: "Jasmin", description: "Kebab and Pepperoni", price: 70 },
+        { id: 7, name: "Capricciosa", description: "Skinke & champignon", price: 70 },
+        { id: 8, name: "Martin", description: "Skinke, løg, Pepperoni, Paprika, Bearnaise Sauce", price: 75 },
+        { id: 9, name: "Melissa", description: "Kebab, løg, Paprika, champignon, Chili", price: 75 },
+        { id: 10, name: "Meyers", description: "Pepperoni", price: 70 },
+        { id: 11, name: "Buddy Holly", description: "Pepperoni, oksekød, pølse, Bacon", price: 80 },
+        { id: 12, name: "Welat", description: "Skinke, pølse, Pepperoni", price: 75 },
+        { id: 13, name: "Torino", description: "Pepperoni og oksekød", price: 70 },
+        { id: 14, name: "Jakob", description: "Pepperoni, Kebab, salat-ost, Frisk-Tomat", price: 75 },
+        { id: 15, name: "Zwei", description: "Skinke, Kebab, Pepperoni, Bacon", price: 75 },
+        { id: 16, name: "Viking", description: "pølse, Pepperoni, Bacon", price: 70 },
+        { id: 17, name: "Mette", description: "Champignon, Paprika, Kebab, Gorgonzola", price: 75 },
+        { id: 18, name: "Hawaii", description: "Skinke og ananas", price: 70 },
+        { id: 19, name: "Villa", description: "Skinke, oksekød, Bacon", price: 75 },
+        { id: 20, name: "Ronnie", description: "Skinke, Kebab, kylling, pølse, Pepperoni, Bacon", price: 90 },
+        { id: 21, name: "Ungpiger", description: "Skinke, Kebab, Bacon, pølse, champignon", price: 80 },
+        { id: 22, name: "Princess", description: "kylling, Kebab, Pepperoni, Chili, hvidløg, Dressing", price: 80 },
+        { id: 23, name: "Maria", description: "Skinke, kødsauce, Spaghetti, pølse, Dressing", price: 80 },
+        { id: 26, name: "Guf", description: "Spaghetti, kødsauce, Kebab, Paprika", price: 75 },
+        { id: 27, name: "Eget", description: "Vælge 4 toppings", price: 85 },
+        { id: 29, name: "Taxa Pizza", description: "Kebab, kylling, løg, Chili, hvidløg, Dressing", price: 75 },
+        { id: 30, name: "Karup", description: "Kebab, oksekød, skinke, kødsauce, Bacon, løg", price: 90 },
+        { id: 31, name: "Rosa", description: "kylling, Kebab, løg, Spaghetti, champignon, Dressing", price: 90 },
+        { id: 32, name: "Pubens", description: "Pepperoni, skinke, oksekød, pølse, Bacon", price: 90 },
+        { id: 33, name: "Jimmy", description: "Tun, rejer, Muslinger", price: 95 },
+        { id: 34, name: "Vegetariana", description: "Paprika, champignon, ananas, løg, Olives, Corn", price: 75 },
+        { id: 35, name: "Shiran", description: "Kebab, kylling, pommes og Dressing", price: 80 },
+        { id: 36, name: "Keko - Salatpizza", description: "Kebab, salat, tomat agurk, Dressing", price: 75 },
+        { id: 37, name: "Dino - Salatpizza", description: "skinke, salat, tomat, agurk, Dressing", price: 75 },
+        { id: 38, name: "El Kurdo - Salatpizza", description: "kylling, salat, tomat, agurk, Dressing", price: 75 },
+        { id: 40, name: "Berlin - Salatpizza", description: "Pepperoni, salat, tomat, agurk, Dressing", price: 75 },
+        { id: 41, name: "Irem - Salatpizza", description: "Kebab, kylling, salat, tomat, agurk, Dressing", price: 80 },
+        { id: 42, name: "Rojin - Salatpizza", description: "Kebab, Pepperoni, salat, tomat, agurk, Dressing", price: 80 },
+        { id: 43, name: "Greek - Salatpizza", description: "Kebab, salat-ost, salat, tomat, agurk, Dressing", price: 80 },
+        { id: 44, name: "Mexicano - Mexicansk", description: "oksekød, Pepperoni, løg, Jalapenos, Chili", price: 80 },
+        { id: 49, name: "Acapulco - Mexicansk", description: "oksekød, Kebab, Bacon, Jalapenos, Chili", price: 80 },
+        { id: 50, name: "Señorita - Mexicansk", description: "Kebab, kødsauce, Pepperoni, champignon, Jalapenos", price: 80 },
+        { id: 51, name: "Azteca - Mexicansk", description: "skinke, Kebab, kylling, Bacon, Jalapenos, Chili", price: 85 },
+        { id: 52, name: "Nachos 1", description: "Nachos, kylling, løg, Dressing", price: 80 },
+        { id: 53, name: "Nachos 2", description: "Nachos, Kebab, løg, Dressing", price: 80 },
+        { id: 54, name: "Nachos 3", description: "Nachos, kylling, Kebab, løg, Spaghetti, Dressing", price: 90 },
+        { id: 55, name: "VIP - Bearnaise", description: "okse-Fillet, Bacon, Paprika, hvidløg, Bearnaise Sauce", price: 85 },
+        { id: 56, name: "Jens - Bearnaise", description: "Kebab, champignon, løg, Bearnaise Sauce", price: 85 },
+        { id: 57, name: "Nisa-Bearnaise", description: "Skinke, Kebab, kylling, pølse, okse-Fillet, Bearnaise Sauce", price: 90 },
+        { id: 58, name: "Elvis (halvt indbagt)", description: "champignon, løg, okse-Fillet, Bearnaise Sauce", price: 85 },
+        { id: 59, name: "Da Vinci (halvt indbagt)", description: "Beef Fillet, champignon, Paprika, Gorgonzola", price: 85 },
+        { id: 61, name: "Mads (halvt indbagt)", description: "Kebab, champignon, løg, Dressing", price: 75 },
+        { id: 62, name: "Thomas (halvt indbagt)", description: "kylling, Spaghetti, løg, Bearnaise Sauce", price: 80 },
+        { id: 65, name: "Florida (halvt indbagt)", description: "kylling, Kebab, Spaghetti, champignon, løg, Dressing", price: 85 },
+        { id: 66, name: "Calzone", description: "skinke", price: 65 },
+        { id: 67, name: "Verona", description: "Spaghetti, kødsauce", price: 75 },
+        { id: 68, name: "Spaghetti", description: "skinke, Spaghetti, kødsauce", price: 75 },
+        { id: 69, name: "Ufuk", description: "Kebab, Spaghetti, løg, Chili, Dressing", price: 75 },
+        { id: 70, name: "Half N Half 70",  price: 95 },
+        { id: 71, name: "Half N Half 71",  price: 95 },
+        { id: 72, name: "Half N Half 72", price: 95 },
+        { id: 73, name: "Half N Half 73",  price: 95 },
+        { id: 74, name: "UFO 1", description: "Kebab, champignon, løg, Spaghetti, Dressing", price: 95 },
+        { id: 76, name: "UFO 2", description: "skinke, kødsauce, Spaghetti", price: 95 },
+        { id: 77, name: "UFO 3", description: "Kebab, kylling, champignon, løg, Dressing", price: 95 },
+        { id: 79, name: "Campagnola", description: "Kebab, Chili, hvidløg, rucola, og parmaskinke", price: 85 },
+        { id: 81, name: "Pizza Barone", description: "Pesto, Gorgonzola, rucola, parmaskinke", price: 85 },
+        { id: 82, name: "Pizza al Pollo", description: "kylling, salat-ost, rucola, parmaskinke", price: 85 },
+        { id: 83, name: "Pizza Fantazia", description: "okse-Fillet, løg, hvidløg, rucola, parmaskinke", price: 85 },
+        { id: 86, name: "Pita Kebab", description: "Kebab", price: 55 },
+        { id: 87, name: "Pita Kylling", description: "kylling", price: 55 },
+        { id: 88, name: "Pita Falafel", description: "Falafel", price: 55 },
+        { id: 89, name: "Pita Tuna", description: "Tuna", price: 65 },
+        { id: 90, name: "Pita Rejer", description: "rejer", price: 55 },
+        { id: 91, name: "Pita Skinke", description: "Skinke", price: 55 },
+        { id: 92, name: "Durum Kebab", description: "Kebab", price: 70 },
+        { id: 93, name: "Durum Kylling", description: "kylling", price: 70 },
+        { id: 94, name: "Durum Kebab - Spaghetti", description: "Kebab, Spaghetti", price: 75 },
+        { id: 95, name: "Durum Falafel", description: "Falafel", price: 70 },
+        { id: 96, name: "Durum Skinke", description: "Skinke", price: 70 },
+        { id: 97, name: "Durum Tuna", description: "Tuna", price: 80 },
+        { id: 98, name: "Durum Kebab with French Fries", description: "Kebab fyld m. pommes", price: 80 },
+        { id: 99, name: "Durum Kylling with French Fries", description: "kylling fyld m. pommes", price: 80 },
+        { id: 100, name: "Sandwich Kebab", description: "Kebab", price: 65 },
+        { id: 101, name: "Sandwich Kylling", description: "kylling", price: 65 },
+        { id: 102, name: "Sandwich Skinke", description: "Skinke", price: 55 },
+        { id: 103, name: "Sandwich Kebab og Kylling", description: "Kebab, kylling", price: 75 },
+        { id: 104, name: "Mickey Mouse", description: "TomatSauce, ost, skinke pølse", price: 55 },
+        { id: 105, name: "Pokemon", description: "TomatSauce, ost, Pepperoni", price: 55 },
+        { id: 106, name: "Baby Pizza", description: "TomatSauce, ost, Spaghetti, kødsauce", price: 55 },
+        { id: 107, name: "Nuggets 4 stk.", description: "kylling Nuggets, pommes-frites, Ketchup, Remoulade", price: 55 },
+        { id: 109, name: "Nachos med Kylling", description: "Nachos, kylling", price: 70 },
+        { id: 110, name: "Nachos med Kebab", description: "Nachos, Kebab", price: 70 },
+        { id: 111, name: "Nachos med Kebab og Kylling", description: "Nachos, Kebab, kylling", price: 80 },
+        { id: 112, name: "Big Burger 200 g", description: "200 g serv. med kartoffelbåde", price: 75 },
+        { id: 113, name: "Cheese Burger 200 g", description: "200 g serv. med kartoffelbåde", price: 80 },
+        { id: 114, name: "Dobbelt Burger 400 g", description: "400 g serv. med kartoffelbåde", price: 85 },
+        { id: 115, name: "Bacon Cheese Burger 200 g", description: "200 g serv. med kartoffelbåde", price: 90 },
+        { id: 116, name: "Dobbelt Bacon Cheese Burger 400 g", description: "400 g serv. med kartoffelbåde", price: 105 },
+        { id: 117, name: "Kylling Burger 200 g", description: "200 g serv. med kartoffelbåde", price: 90 },
+        { id: 118, name: "Big Burger ", description: "", price: 50 },
+        { id: 119, name: "Cheese Burger ", description: "", price: 55 },
+        { id: 120, name: "Dobbelt Bacon Cheese Burger ", description: "", price: 70 },
+        { id: 121, name: "Kylling Burger ", description: "", price: 55 },
+        { id: 122, name: "Chicken Master", description: "Crispy kyllingestrimler med tzatziki, pommes frites, ketchup og remoulade", price: 80 },
+        { id: 123, name: "Skinkeschnitzel", description: "Med pommes frites, salat og dressing bearnaisesauce", price: 85 },
+        { id: 124, name: "Plankebøf", description: "kartoffelbåde, salat og dressing valg bearnaisesauce", price: 85 },
+        { id: 125, name: "Unge Kebabmix", description: "pommesfrites, løg og dressing", price: 70 },
+        { id: 126, name: "Unge Kyllingmix", description: "pommes frites, løg og dressing", price: 70 },
+        { id: 127, name: "Nuggets 8 stk", description: "pommes frites, ketchup og remoulade", price: 75 },
+        { id: 128, name: "Pølsemix", description: "pommes frites, rå løg og karryketchup", price: 75 },
+        { id: 129, name: "Fiskefilet", description: "pommes frites, remoulade, citron, salat og dressing", price: 75 },
+        { id: 130, name: "½ Grillkylling", description: "pommes frites, salat, dressing, tzatziki, ketchup og remoulade", price: 85 },
+        { id: 131, name: "Græsk Bøf 400 g", description: "pommesfrites, salat, dressing og bearnaisesauce", price: 110 },
+        { id: 132, name: "Freid chicken 5 stk", description: "pommesfrites, salat og dressing", price: 85 },
+        { id: 134, name: "Husets Kebabmix", description: "pommesfrites, salat, dressing og tzatziki", price: 80 },
+        { id: 135, name: "Husets Kyllingmix", description: "pommesfrites, salat, dressing og tzatziki", price: 80 },
+        { id: 136, name: "HotWings 6 stk", description: "pommesfrites, ketchup, remoulade salat og dressing", price: 75 },
+        { id: 137, name: "Spareribs 500 g", description: "kartoffelbåde, salat, dressing og bearnaisesauce", price: 120 },
+        { id: 138, name: "Indbagt Rejer 10 stk", description: "pommesfrites, salat, dressing og remoulade", price: 80 },
+        { id: 139, name: "Hvidløgsbrød", description: "m. ost", price: 45 },
+        { id: 140, name: "Pommes Frites, lille", description: "Med ketchup og remoulade", price: 35 },
+        { id: 141, name: "Pommes Frites, stor", description: "Med ketchup og remoulade", price: 40 },
+        { id: 142, name: "Bøfsandwich 200 g", description: "brun sovs", price: 65 },
+        { id: 143, name: "Special Bøfsandwich 200 g", description: "brun sovs og bacon", price: 70 },
+        { id: 144, name: "Ribbensandwich", description: "", price: 65 },
+        { id: 144, name: "a Ribbensandwich med pommesfrites", description: "", price: 85 },
+        { id: 145, name: "Græsk Salat", description: "brød", price: 60 },
+        { id: 146, name: "Falafel Salat", description: "brød", price: 60 },
+        { id: 147, name: "Tun Salat", description: "brød", price: 65 },
+        { id: 148, name: "Kylling Salat", description: "brød", price: 60 },
+        { id: 149, name: "Kebab Salat", description: "brød", price: 60 },
+        { id: 150, name: "Rejer Salat", description: "brød", price: 60 },
+        { id: 151, name: "Hjemmelavet Lasagne", description: "salat, dressing og brød", price: 85 },
+        { id: 152, name: "Spaghetti", description: "spaghetti, fløde, tomatsauce, oksefilet og løg", price: 85 },
+        { id: 153, name: "Spaghetti 2", description: "spaghetti, skinke, bacon, tomatsauce og fløde", price: 85 },
+        { id: 154, name: "Bolognese", description: "spaghetti og kødsovs", price: 85 },
+        { id: 155, name: "Penne 2", description: "champignon, løg, paprika, tomatsauce, kebab og fløde", price: 85 },
+        { id: 158, name: "Fettuccini", description: "løg, bacon, kylling, fløde og tomatsauce", price: 85 },
+        { id: 159, name: "Ristet Hotdog", description: "", price: 30 },
+        { id: 160, name: "Fransk Hotdog", description: "", price: 30 },
+        { id: 161, name: "Risted pølse", description: "", price: 30 },
+        { id: 163, name: "frokost salat pizza kebab", description: "kebab, salat og dressing", price: 55 },
+        { id: 164, name: "frokost salat pizza kylling", description: "kylling, salat og dressing", price: 55 },
+        { id: 165, name: "Frokostpizza", description: "skinke og ananas", price: 55 },
+        { id: 166, name: "Frokostpizza", description: "pepperoni", price: 55 },
+        { id: 167, name: "Frokostpizza", description: "kebab, løg, chili og dressing", price: 55 },
+        { id: 168, name: "Frokostpizza", description: "skinke og pepperoni", price: 55 },
+        { id: 169, name: "Frokostpizza", description: "pepperoni og oksekød", price: 55 },
+        { id: 170, name: "Frokost durum", description: "kylling, salat og dressing", price: 55 },
+        { id: 171, name: "Frokost durum", description: "kebab, salat og dressing", price: 55 },
+        { id: 172, name: "Kebab-mix", description: "kebab, pommes frites og dressing", price: 55 },
+        { id: 173, name: "Kylling-mix", description: "kylling, pommes frites og dressing", price: 55 },
+        { id: 174, name: "dåse sodavand 33 ml", description: "cola, fanta, sprite, pepsi max", price: 20 },
+        { id: 175, name: "Cocio 0,5 L", description: "", price: 25 },
+        { id: 176, name: "IS te 0,5 L", description: "Freksen, lemonade-hylde blomst, orange-mango", price: 25 },
+        { id: 177, name: "sodavand 1,5 L", description: "cola, fanta, sprite, pepsi max", price: 45 },
+        { id: 178, name: "Tuborg", description: "", price: 20 },
+        { id: 179, name: "glas vin", description: "rødvin / hvidvin", price: 50 },
+        { id: 180, name: "Flaske Vin", description: "rød / hvid", price: 160 },
+        { id: 181, name: "Flaske Vodka", description: "", price: 270 },
+        { id: 182, name: "Flaske Whiskey", description: "", price: 270 },
+        { id: 183, name: "IS i glass", description: "Jorbær, kirsbær, chokolade, karamel, Irish-coffe", price: 60 },
+        { id: 184, name: "Magnum Is", description: "Chokolade, white chokolade, Remix, Almond", price: 35 }
+
+        ];
+
+        let cart = {};
+
+        function loadCategories() {
+            const sidebar = document.getElementById('left-sidebar');
+            categories.forEach(category => {
+                let catDiv = document.createElement('div');
+                catDiv.className = 'category';
+                catDiv.textContent = category.name;
+                catDiv.onclick = () => filterItems(category.range[0], category.range[1]);
+                sidebar.appendChild(catDiv);
+            });
+        }
+
+        function filterItems(startId, endId) {
+            const mainContent = document.getElementById('main-content');
+            mainContent.innerHTML = '';
+            items.filter(item => item.id >= startId && item.id <= endId).forEach(item => {
+                let itemDiv = document.createElement('div');
+                itemDiv.className = 'item';
+                itemDiv.innerHTML = `<span>${item.id} - ${item.name} - DKK ${item.price}</span>`;
+                if (item.id <= 57) {
+                    itemDiv.innerHTML += `<button class='button mega-button' onclick='event.stopPropagation(); addToCart(${item.id}, "${item.name}", 260, "Mega")'>Mega</button>`;
+                    itemDiv.innerHTML += `<button class='button familie-button' onclick='event.stopPropagation(); addToCart(${item.id}, "${item.name}", 160, "Familie")'>Familie</button>`;
+                }
+                itemDiv.addEventListener('click', function() { addToCart(item.id, item.name, item.price); });
+                mainContent.appendChild(itemDiv);
+            });
+        }
+
+        function addToCart(id, name, price, size = "") {
+            let key = `${id}-${size}`;
+            if (cart[key]) {
+                cart[key].count++;
+                document.getElementById(`item-${key}`).textContent = `${cart[key].count}x ${id} - ${name} (${size}) - DKK ${price}`;
+            } else {
+                cart[key] = { id, name, price, size, count: 1 };
+                const cartItems = document.getElementById('cart-items');
+                const cartItem = document.createElement('div');
+                cartItem.id = `item-${key}`;
+                cartItem.className = 'cart-item';
+                cartItem.innerHTML = `1x ${id} - ${name} (${size}) - DKK ${price} <button onclick='removeFromCart("${key}")'>Delete</button>`;
+                cartItems.appendChild(cartItem);
+            }
+            updateTotal(price);
+        }
+
+        function addDeliveryCost(amount) {
+            addToCart('Delivery', 'Delivery Cost', amount, '');
+        }
+
+        function updateTotal(price) {
+            const totalElement = document.getElementById('total');
+            totalElement.textContent = parseInt(totalElement.textContent) + price;
+        }
+
+        function removeFromCart(key) {
+            const item = cart[key];
+            if (item.count > 1) {
+                item.count--;
+                document.getElementById(`item-${key}`).textContent = `${item.count}x ${item.id} - ${item.name} (${item.size}) - DKK ${item.price}`;
+                updateTotal(-item.price);
+            } else {
+                document.getElementById(`item-${key}`).remove();
+                delete cart[key];
+                updateTotal(-item.price);
+            }
+        }
+
+        function openModal(type) {
+            document.getElementById(`${type}Modal`).style.display = 'block';
+        }
+
+        function closeModal(type) {
+            document.getElementById(`${type}Modal`).style.display = 'none';
+            document.querySelectorAll(`#${type}Modal input[type="text"]`).forEach(input => input.value = '');
+        }
+
+        function submitOrder(type) {
+            const now = new Date();
+            const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+            const name = type === 'delivery' ? document.getElementById('name').value : document.getElementById('name-pickup').value;
+            const address = type === 'delivery' ? document.getElementById('address').value : 'N/A';
+            const phone = type === 'delivery' ? document.getElementById('phone').value : 'N/A';
+            const items = Object.values(cart).map(item => `${item.count}x ${item.id} - ${item.name} (${item.size})\nDKK ${item.price}`);
+            const total = document.getElementById('total').textContent;
+            const printContent = `Date: ${date} Time: ${time}\nOrder Type: ${type}\nName: ${name}\nAddress: ${address}\nPhone: ${phone}\nItems:\n${items.join("\n")}\nTotal: DKK ${total}\n\n\n\n\n`;
+
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`<pre>${printContent}</pre>`);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+            printWindow.close();
+
+            resetOrder();
+            closeModal(type);
+        }
+
+        function resetOrder() {
+            document.getElementById('cart-items').innerHTML = '';
+            document.getElementById('total').textContent = '0';
+            cart = {};
+        }
+
+        window.onload = loadCategories;
+    </script>
+</body>
+</html>
